@@ -1,0 +1,4 @@
+Hello World
+GET http://localhost:5555/api/v1/products
+GET http://localhost:5555/api/v1/productsBY127.0.0.1
+GET http://localhost:5555/api/v1/products BY 127.0.0.1

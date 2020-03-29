@@ -1,0 +1,268 @@
+from . import db
+
+from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import TimedJSONWebSignatureSerializer as genJWT
+from flask import current_app
+
+import base64
+from datetime import datetime, timedelta
+import os
+
+#------CLASS cho Web bán hàng------#
+class Loai_san_pham(db.Model):
+    __tablename__ = 'loai_san_pham'
+    ma_loai = db.Column(db.Integer, nullable = False, primary_key = True)
+    ten_loai = db.Column(db.String(50), nullable = False)
+    mo_ta = db.Column(db.Text)
+    
+    def to_json(self):
+        json_category={
+            "category_id":self.ma_loai,
+            "category_name":self.ten_loai,
+            
+        }
+        return json_category
+
+    def __str__(self):
+        return self.ten_loai
+
+class San_pham(db.Model):
+    __tablename__ = 'san_pham'
+    ma_san_pham = db.Column(db.Integer, nullable = False, primary_key = True)
+    ten_san_pham = db.Column(db.String(100), nullable = False)
+    ma_loai = db.Column(db.Integer, db.ForeignKey('loai_san_pham.ma_loai'))
+    gia_ban = db.Column(db.Integer, nullable = False)
+    gia_nhap = db.Column(db.Integer, nullable = False, default = 0)
+    so_luong_ton = db.Column(db.Integer, nullable = False, default = 0)
+    mo_ta = db.Column(db.Text)
+    thuoc_tinh = db.Column(db.String(200))
+    current_nhap_hang = db.Column(db.String(200))
+    current_edit_price = db.Column(db.String(200))
+    
+    loai_san_pham = db.relationship(Loai_san_pham, backref=db.backref('san_pham', lazy = 'joined'))
+    def __str__(self):
+        return self.ten_san_pham
+
+    def get_id(self):
+        return self.ma_san_pham
+    
+    def to_json(self):
+        json_product = {
+            "id":self.ma_san_pham,
+            "name":self.ten_san_pham,
+            "category":self.ma_loai,
+            "import_price":self.gia_nhap,
+            "sell_price":self.gia_ban,
+            "stock_quantity":self.so_luong_ton,
+            "description":self.mo_ta
+        }
+        return json_product
+    
+
+    
+    
+class Loai_nguoi_dung(db.Model):
+    __tablename__ = 'loai_nguoi_dung'
+    ma_loai_nguoi_dung = db.Column(db.Integer, nullable = False, primary_key = True)
+    ten_loai_nguoi_dung = db.Column(db.String(100))
+    def __str__(self):
+        return self.ten_loai_nguoi_dung
+
+
+class Nguoi_dung(db.Model):
+    __tablename__ = 'nguoi_dung'
+    ma_nguoi_dung = db.Column(db.Integer, nullable = False, primary_key = True)
+    ma_loai_nguoi_dung = db.Column(db.Integer, db.ForeignKey('loai_nguoi_dung.ma_loai_nguoi_dung'))
+    ho_ten = db.Column(db.String(200))
+    ten_dang_nhap = db.Column(db.String(64), nullable = False)
+    mat_khau_hash = db.Column(db.String(128), nullable = False)
+    loai_nguoi_dung = db.relationship(Loai_nguoi_dung,backref=db.backref('nguoi_dung',lazy='joined')) 
+    
+    @property
+    def is_authenticated(self):
+        return True
+    @property
+    def is_active(self):
+        return True
+    @property
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return self.ma_nguoi_dung
+
+    def __unicode__(self):
+        return self.ho_ten
+    
+    def __str__(self):
+        return self.ten_dang_nhap
+
+    @property
+    def password(self):
+        raise AttributeError('password is not a readable attribute')
+
+    @password.setter
+    def set_password(self, password):
+        self.mat_khau_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        return check_password_hash(self.mat_khau_hash, password)
+
+    def get_token(self,expiration):
+        s = genJWT(current_app.config['SECRET_KEY'],expires_in=expiration)
+        return s.dumps({'user_id':self.ma_nguoi_dung}).decode('utf-8')
+
+    @staticmethod
+    def check_token(token):
+        s = genJWT(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except:
+            return None
+        return Nguoi_dung.query.get(data['user_id'])
+
+    def to_json(self):
+        json_user = {
+            "user_id":self.ma_nguoi_dung,
+            "access_level":self.ma_loai_nguoi_dung,
+            "name":self.ho_ten,
+            "username":self.ten_dang_nhap,
+            "password":self.mat_khau_hash
+            
+        }
+        return json_user
+   
+class Khach_hang(db.Model):
+    __tablename__ = 'khach_hang'
+    ma_khach_hang = db.Column(db.Integer, nullable = False, primary_key = True)
+    ten_khach_hang = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    dia_chi = db.Column(db.String(200))
+    dien_thoai = db.Column(db.String(20))
+    ten_dang_nhap = db.Column(db.String(64))
+    mat_khau_hash = db.Column(db.String(128))
+    access_level = db.Column(db.Integer)
+    @property
+    def is_authenticated(self):
+        return True
+    @property
+    def is_active(self):
+        return True
+    @property
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return self.ma_khach_hang
+
+    def __unicode__(self):
+        return self.ten_khach_hang
+    
+    def __str__(self):
+        return self.ten_dang_nhap
+
+    @property
+    def password(self):
+        raise AttributeError('password is not a readable attribute')
+
+    @password.setter
+    def set_password(self, password):
+        self.mat_khau_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        return check_password_hash(self.mat_khau_hash, password)
+    
+    def to_json(self):
+        json_customer={
+            "customer_id":self.ma_khach_hang, 
+            "customer_name":self.ten_khach_hang,
+            "customer_email":self.email,
+            "customer_address":self.dia_chi,
+            "customer_phone":self.dien_thoai,
+            "customer_username":self.ten_dang_nhap, 
+            "customer_password":self.mat_khau_hash, 
+            "access_level":self.access_level
+        }
+        return json_customer
+
+class Hoa_don(db.Model):
+    __tablename__ = 'hoa_don'
+    ma_hoa_don = db.Column(db.Integer, nullable = False, primary_key = True)
+    ngay_tao_hoa_don = db.Column(db.DateTime, nullable = False)
+    ma_khach_hang = db.Column(db.Integer, db.ForeignKey('khach_hang.ma_khach_hang'))
+    tong_tien = db.Column(db.Float, nullable = False)
+    giam_gia = db.Column(db.Float, default = 0)
+    kenh_ban = db.Column(db.String(100))
+    ma_hoa_don_kenh_ban = db.Column(db.String(50))
+    nha_van_chuyen = db.Column(db.String(255))
+    phi_van_chuyen = db.Column(db.Float)
+    ma_van_don = db.Column(db.String(100))
+    trang_thai = db.Column(db.Integer)
+    ghi_chu = db.Column(db.Text)
+    da_in_hd = db.Column(db.Integer, default = 0)
+    da_cap_nhat_kho = db.Column(db.Integer, default = 0)
+    test = db.Column(db.Integer)
+    test_2 = db.Column(db.Integer)
+    test_3 = db.Column(db.Integer)
+    test_4 = db.Column(db.Integer)
+    
+    khach_hang = db.relationship(Khach_hang, backref = db.backref('hoa_don',lazy='joined'))
+    def __repr__(self):
+        return "<Ma_hoa_don = %d>" % self.ma_hoa_don
+
+    def get_id(self):
+        return self.ma_hoa_don
+
+    def to_json(self):
+        json_order = {
+            "order_id" : self.ma_hoa_don,
+            "date": self.ngay_tao_hoa_don.strftime("%d-%m-%Y %H:%M:%S"),
+            "customer": self.ma_khach_hang,
+            "total":self.tong_tien,
+            "discount":self.giam_gia,
+            "sale_channel":self.kenh_ban,
+            "order_id_by_channel":self.ma_hoa_don_kenh_ban,
+            "delivery":self.nha_van_chuyen,
+            "shipping_code":self.ma_van_don,
+            "status":self.trang_thai
+        }
+        return json_order
+
+class Don_hang(db.Model):
+    __tablename__ = 'don_hang'
+    id = db.Column(db.Integer, nullable =False, primary_key = True)
+    ma_hoa_don = db.Column(db.Integer, db.ForeignKey('hoa_don.ma_hoa_don'))
+    ma_san_pham = db.Column(db.Integer)
+    ten_san_pham = db.Column(db.String(100), nullable = False)
+    so_luong = db.Column(db.Integer, nullable = False)
+    gia_ban = db.Column(db.Integer)
+    gia_nhap = db.Column(db.Integer)
+    ghi_chu = db.Column(db.Text)
+    loi_nhuan = db.Column(db.Integer)
+    hoa_don = db.relationship(Hoa_don, backref = db.backref('don_hang',lazy='joined'), foreign_keys=[ma_hoa_don])
+    
+    def __repr__(self):
+        return "<Ma_hoa_don = %d>" % self.ma_hoa_don
+
+    def to_json(self):
+        json_detail = {
+            "product_id":self.ma_san_pham,
+            "product_name":self.ten_san_pham,
+            "quantity":self.so_luong,
+            "price":self.gia_ban
+        }
+        return json_detail
+
+class Thu_chi(db.Model):
+    __tablename__ = 'thu_chi'
+    id = db.Column(db.Integer, nullable = False, primary_key = True)
+    ten = db.Column(db.String(200), nullable = False)
+    noi_dung = db.Column(db.Text)
+    so_tien = db.Column(db.Float, nullable = False)
+    thoi_gian = db.Column(db.DateTime)
+    loai = db.Column(db.Integer)
+
+    def __str__(self):
+        return self.ten
+
+
